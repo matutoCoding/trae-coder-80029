@@ -33,7 +33,7 @@ import {
   CheckOutlined,
   CloseOutlined,
 } from '@ant-design/icons';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import dayjs, { Dayjs } from 'dayjs';
 import { api } from '@/lib/api';
 import { useUserStore } from '@/store/userStore';
@@ -111,6 +111,8 @@ interface EditSlotFormValues {
 export default function BenchDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const dateParam = searchParams.get('date');
   const { currentUser } = useUserStore();
   const isAdmin = currentUser.role === 'admin';
   const isStudent = currentUser.role === 'student';
@@ -119,7 +121,11 @@ export default function BenchDetail() {
   const [slotsLoading, setSlotsLoading] = useState(false);
   const [bench, setBench] = useState<Bench | null>(null);
 
-  const [weekStart, setWeekStart] = useState<Dayjs>(dayjs().startOf('week').add(1, 'day'));
+  const [weekStart, setWeekStart] = useState<Dayjs>(
+    dateParam && dayjs(dateParam).isValid()
+      ? dayjs(dateParam).startOf('week').add(1, 'day')
+      : dayjs().startOf('week').add(1, 'day'),
+  );
   const [slots, setSlots] = useState<TimeSlot[]>([]);
 
   const [tutors, setTutors] = useState<User[]>([]);

@@ -97,11 +97,15 @@ interface PreviewData {
 interface GenerateData {
   inserted: number;
   skipped: number;
+  bookingRelatedCount: number;
   total: number;
   details: {
     inserted: SlotDetail[];
     skipped: SlotDetail[];
     bookingRelated: SlotDetail[];
+    insertedTotal: number;
+    skippedTotal: number;
+    bookingRelatedTotal: number;
   };
 }
 
@@ -360,7 +364,7 @@ export default function CycleRules() {
             type="link"
             size="small"
             icon={<PlayCircleOutlined />}
-            onClick={() => handleGenerate(r.id)}
+            onClick={() => handlePreview(r)}
           >
             生成
           </Button>
@@ -538,7 +542,6 @@ export default function CycleRules() {
               <Button
                 type="primary"
                 onClick={handlePreviewConfirm}
-                disabled={previewData.insertCount === 0}
               >
                 确认生成
               </Button>
@@ -741,7 +744,7 @@ export default function CycleRules() {
                   <div className="text-center">
                     <div className="text-sm text-slate-500">关联预约（保留）</div>
                     <div className="text-3xl font-bold text-red-600 mt-1">
-                      {generateResult.details.bookingRelated.length}
+                      {generateResult.bookingRelatedCount}
                     </div>
                     <div className="text-xs text-slate-400 mt-1">条时段</div>
                   </div>
@@ -753,7 +756,7 @@ export default function CycleRules() {
                 items={[
                   {
                     key: 'inserted',
-                    label: `新增成功明细（前 ${generateResult.details.inserted.length} 条）`,
+                    label: `新增成功明细（共 ${generateResult.details.insertedTotal} 条，显示前 ${generateResult.details.inserted.length} 条）`,
                     children:
                       generateResult.details.inserted.length > 0 ? (
                         <Table
@@ -781,7 +784,7 @@ export default function CycleRules() {
                   },
                   {
                     key: 'skipped',
-                    label: `跳过多明细（前 ${generateResult.details.skipped.length} 条）`,
+                    label: `跳过多明细（共 ${generateResult.details.skippedTotal} 条，显示前 ${generateResult.details.skipped.length} 条）`,
                     children:
                       generateResult.details.skipped.length > 0 ? (
                         <Table
@@ -809,7 +812,7 @@ export default function CycleRules() {
                   },
                   {
                     key: 'bookingRelated',
-                    label: `关联预约明细（前 ${generateResult.details.bookingRelated.length} 条）`,
+                    label: `关联预约明细（共 ${generateResult.details.bookingRelatedTotal} 条，显示前 ${generateResult.details.bookingRelated.length} 条）`,
                     children:
                       generateResult.details.bookingRelated.length > 0 ? (
                         <Table

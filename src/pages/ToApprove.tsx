@@ -26,6 +26,8 @@ import {
   EyeOutlined,
   UserSwitchOutlined,
   ReloadOutlined,
+  ThunderboltOutlined,
+  SendOutlined,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
@@ -87,9 +89,39 @@ export default function ToApprove() {
   const [benches, setBenches] = useState<Bench[]>([]);
   const [routes, setRoutes] = useState<ApprovalRoute[]>([]);
   const [filterValues, setFilterValues] = useState<FilterFormValues>({});
+  const [selectedRowKeys, setSelectedRowKeys] = useState<number[]>([]);
+  const [batchModalOpen, setBatchModalOpen] = useState(false);
+  const [batchAction, setBatchAction] = useState<'approve' | 'reject'>('approve');
+  const [batchComment, setBatchComment] = useState('');
+  const [remindedSet, setRemindedSet] = useState<Set<number>>(new Set());
+  const [remindModalOpen, setRemindModalOpen] = useState(false);
+  const [remindBooking, setRemindBooking] = useState<Booking | null>(null);
+  const [batchForm] = Form.useForm();
 
   const userRole = currentUser?.role || 'student';
   const isApprover = APPROVER_ROLES.includes(userRole);
+
+  const calcWaitHours = (booking: Booking): number => {
+    const records = booking.records || [];
+    const lastRecord = records.length > 0 ? records[records.length - 1] : null;
+    const baseTime = lastRecord ? lastRecord.createdAt : booking.createdAt;
+    return dayjs().diff(dayjs(baseTime), 'hour', true);
+  };
+
+  const formatWaitDuration = (hours: number): string => {
+    if (hours < 1) {
+      const mins = Math.round(hours * 60);
+      return `${mins}分钟`;
+    }
+    if (hours < 24) {
+      const h = Math.floor(hours);
+      const m = Math.round((hours - h) * 60);
+      return `${h}小时${m}分`;
+    }
+    const d = Math.floor(hours / 24);
+    const h = Math.round(hours % 24);
+    return `${d}天${h}小时`;
+  };
 
   const loadPending = async () => {
     if (!currentUser?.id || !isApprover) return;
@@ -346,6 +378,52 @@ export default function ToApprove() {
       key: 'createdAt',
       width: 170,
       render: (v: string) => dayjs(v).format('YYYY-MM-DD HH:mm'),
+    },
+    {
+      title: '等待时长',
+      key: 'waitDuration',
+      width: 140,
+      render: (_: any, r: Booking) => {
+        const hours = calcWaitHours(r);
+        const isStuck = hours >= 48;
+        return (
+          <Space size="small">
+            {isStuck ? (
+              <Tag color="red">卡住</Tag>
+            ) : (
+              <Tag color="blue">正常</Tag>
+            )}
+            <span className={isStuck ? 'text-red-500 font-medium' : ''}>
+              {formatWaitDuration(hours)}
+            </span>
+          </Space>
+        );
+      },
+    },
+    {
+      title: '催办',
+      key: 'remind',
+      width: 100,
+      render: (_: any, r: Booking) => {
+        const hours = calcWaitHours(r);
+        if (hours <= 24) return null;
+        if (remindedSet.has(r.id)) {
+          return <Tag color="default">已催办</Tag>;
+        }
+        return (
+          <Button
+            type="link"
+            size="small"
+            icon={<SendOutlined />}
+            onClick={() => {
+              setRemindBooking(r);
+              setRemindModalOpen(true);
+            }}
+          >
+            催办
+          </Button>
+        );
+      },
     },
     {
       title: '预约时段',
@@ -616,6 +694,54 @@ export default function ToApprove() {
       </Card>
 
       <Card className="shadow-sm" styles={{ body: { padding: 0 } }}>
+        {activeTab === 'pending' && (
+          <div className="px-4 pt-4 flex items-center gap-3">
+            <Button
+              type="primary"
+              icon={<CheckOutlined />}
+              disabled={selectedRowKeys.length === 0}
+              onClick={() => {
+                const statusTexts = new Set(
+                  selectedRowKeys
+                    .map((key) => filteredPending.find((b) => b.id === key))
+                    .filter(Boolean)
+                    .map((b) => (b as any).statusText || '')
+                );
+                if (statusTexts.size > 1) {
+                  msgApi.warning('请选择同一审批节点的记录');
+                  return;
+                }
+                setBatchAction('approve');
+                batchForm.resetFields();
+                setBatchModalOpen(true);
+              }}
+            >
+              批量通过 {selectedRowKeys.length > 0 && `(${selectedRowKeys.length})`}
+            </Button>
+            <Button
+              danger
+              icon={<CloseOutlined />}
+              disabled={selectedRowKeys.length === 0}
+              onClick={() => {
+                const statusTexts = new Set(
+                  selectedRowKeys
+                    .map((key) => filteredPending.find((b) => b.id === key))
+                    .filter(Boolean)
+                    .map((b) => (b as any).statusText || '')
+                );
+                if (statusTexts.size > 1) {
+                  msgApi.warning('请选择同一审批节点的记录');
+                  return;
+                }
+                setBatchAction('reject');
+                batchForm.resetFields();
+                setBatchModalOpen(true);
+              }}
+            >
+              批量驳回 {selectedRowKeys.length > 0 && `(${selectedRowKeys.length})`}
+            </Button>
+          </div>
+        )}
         <Table
           rowKey="id"
           size="middle"
@@ -623,6 +749,19 @@ export default function ToApprove() {
           columns={activeTab === 'pending' ? pendingColumns : approvedColumns}
           dataSource={currentData}
           scroll={{ x: 1200 }}
+          rowClassName={(record) => {
+            if (activeTab !== 'pending') return '';
+            const hours = calcWaitHours(record);
+            return hours >= 48 ? 'bg-red-50' : '';
+          }}
+          rowSelection={
+            activeTab === 'pending'
+              ? {
+                  selectedRowKeys,
+                  onChange: (keys) => setSelectedRowKeys(keys as number[]),
+                }
+              : undefined
+          }
           locale={{
             emptyText: (
               <Empty
@@ -745,6 +884,144 @@ export default function ToApprove() {
             />
           </Form.Item>
         </Form>
+      </Modal>
+
+      <Modal
+        title={
+          <Space>
+            {batchAction === 'approve' ? (
+              <CheckOutlined className="text-green-500" />
+            ) : (
+              <CloseOutlined className="text-red-500" />
+            )}
+            <span>{batchAction === 'approve' ? '批量通过' : '批量驳回'}</span>
+          </Space>
+        }
+        open={batchModalOpen}
+        onCancel={() => setBatchModalOpen(false)}
+        onOk={async () => {
+          try {
+            const values = await batchForm.validateFields();
+            const comment = values.comment || (batchAction === 'reject' ? '驳回' : '');
+            let successCount = 0;
+            let failCount = 0;
+            for (const bookingId of selectedRowKeys) {
+              try {
+                const endpoint = batchAction === 'approve' ? '/bookings/approve' : '/bookings/reject';
+                const res = await api.post<{ success: boolean; message?: string }>(
+                  endpoint,
+                  {
+                    bookingId,
+                    approverId: currentUser.id,
+                    comment,
+                  }
+                );
+                if (res.success) {
+                  successCount++;
+                } else {
+                  failCount++;
+                }
+              } catch {
+                failCount++;
+              }
+            }
+            msgApi.success(
+              `操作完成：成功 ${successCount} 条${failCount > 0 ? `，失败 ${failCount} 条` : ''}`
+            );
+            setBatchModalOpen(false);
+            setSelectedRowKeys([]);
+            loadPending();
+            loadApproved();
+          } catch {
+          }
+        }}
+        confirmLoading={submitLoading}
+        okText={batchAction === 'approve' ? '确认通过' : '确认驳回'}
+        okButtonProps={batchAction === 'approve' ? { type: 'primary' } : { danger: true }}
+        cancelText="取消"
+        width={520}
+      >
+        <div className="mb-4 p-4 bg-slate-50 rounded-lg">
+          <p>
+            <span className="text-slate-500">已选择：</span>
+            <span className="font-medium">{selectedRowKeys.length} 条记录</span>
+          </p>
+        </div>
+        <Form form={batchForm} layout="vertical">
+          <Form.Item
+            label={batchAction === 'approve' ? '统一审批意见（选填）' : '驳回原因（必填）'}
+            name="comment"
+            rules={
+              batchAction === 'reject'
+                ? [
+                    { required: true, message: '请输入驳回原因' },
+                    { max: 200, message: '最多200字' },
+                  ]
+                : [{ max: 200, message: '最多200字' }]
+            }
+          >
+            <Input.TextArea
+              placeholder={batchAction === 'approve' ? '请输入审批意见...' : '请详细说明驳回原因...'}
+              rows={3}
+              maxLength={200}
+              showCount
+            />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal
+        title={
+          <Space>
+            <ThunderboltOutlined className="text-orange-500" />
+            <span>催办确认</span>
+          </Space>
+        }
+        open={remindModalOpen}
+        onCancel={() => {
+          setRemindModalOpen(false);
+          setRemindBooking(null);
+        }}
+        onOk={async () => {
+          if (!remindBooking) return;
+          try {
+            const targetRole = (remindBooking as any).statusText?.includes('导师')
+              ? 'tutor'
+              : (remindBooking as any).statusText?.includes('安全')
+              ? 'safety'
+              : 'admin';
+            const res = await api.post<{ success: boolean; message?: string }>(
+              '/bookings/remind',
+              { bookingId: remindBooking.id, targetRole }
+            );
+            if (res.success) {
+              msgApi.success('已发送催办提醒');
+              setRemindedSet((prev) => new Set(prev).add(remindBooking.id));
+            } else {
+              msgApi.error(res.message || '催办失败');
+            }
+          } catch (err: any) {
+            msgApi.error(err.message || '催办失败');
+          } finally {
+            setRemindModalOpen(false);
+            setRemindBooking(null);
+          }
+        }}
+        okText="确认催办"
+        cancelText="取消"
+        width={480}
+      >
+        {remindBooking && (
+          <div className="space-y-3">
+            <p>
+              将给预约 <span className="font-mono font-medium">#{remindBooking.id}</span>{' '}
+              「{remindBooking.title}」的当前审批人发送催办提醒。
+            </p>
+            <p className="text-slate-500 text-sm">
+              当前审批节点：{(remindBooking as any).statusText || '未知'}
+            </p>
+          </div>
+        )}
       </Modal>
     </div>
   );

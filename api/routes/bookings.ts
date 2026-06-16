@@ -119,6 +119,28 @@ router.get('/', (req: Request, res: Response): void => {
   }
 });
 
+router.post('/remind', (req: Request, res: Response): void => {
+  try {
+    const { bookingId, targetRole } = req.body as {
+      bookingId: number;
+      targetRole: string;
+    };
+    if (!bookingId || !targetRole) {
+      res.json({ success: false, message: 'bookingId 和 targetRole 必填' });
+      return;
+    }
+    const booking = bookingRepo.findById(bookingId);
+    if (!booking) {
+      res.json({ success: false, message: '预约不存在' });
+      return;
+    }
+    console.log(`[催办] bookingId=${bookingId}, targetRole=${targetRole}, currentStatus=${booking.status}`);
+    res.json({ success: true, message: '已发送催办提醒' });
+  } catch (err: any) {
+    res.json({ success: false, message: err.message });
+  }
+});
+
 router.post('/approve', (req: Request, res: Response): void => {
   try {
     const { bookingId, approverId, comment } = req.body as {

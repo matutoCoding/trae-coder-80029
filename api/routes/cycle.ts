@@ -190,11 +190,15 @@ router.post('/:id/generate', (req: Request, res: Response): void => {
       data: {
         inserted: result.inserted,
         skipped: result.skipped,
+        bookingRelatedCount: classified.relatedBookings.length,
         total: slots.length,
         details: {
           inserted: classified.toInsert.slice(0, 10),
           skipped: classified.toSkip.slice(0, 10),
           bookingRelated: classified.relatedBookings.slice(0, 10),
+          insertedTotal: classified.toInsert.length,
+          skippedTotal: classified.toSkip.length,
+          bookingRelatedTotal: classified.relatedBookings.length,
         },
       },
       message: `新生成 ${result.inserted} 条，跳过已存在 ${result.skipped} 条，共 ${slots.length} 条`,
