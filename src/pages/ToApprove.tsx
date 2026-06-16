@@ -13,20 +13,35 @@ import {
   Empty,
   Alert,
   Card,
+  Row,
+  Col,
+  Select,
+  DatePicker,
 } from 'antd';
 import type { TabsProps } from 'antd';
+import type { Dayjs } from 'dayjs';
 import {
   CheckOutlined,
   CloseOutlined,
   EyeOutlined,
   UserSwitchOutlined,
+  ReloadOutlined,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
 import { api } from '@/lib/api';
 import { useUserStore } from '@/store/userStore';
-import type { Booking } from 'shared/types';
+import type { Booking, Bench, ApprovalRoute, ApiResponse, RiskLevel } from 'shared/types';
 import { STATUS_LABEL, RISK_LABEL, RISK_COLOR, ROLE_LABEL } from 'shared/types';
+
+const { RangePicker } = DatePicker;
+
+interface FilterFormValues {
+  benchIds?: number[];
+  riskLevels?: RiskLevel[];
+  createdAtRange?: [Dayjs, Dayjs];
+  currentNode?: string;
+}
 
 type TabKey = 'pending' | 'approved';
 
@@ -68,6 +83,10 @@ export default function ToApprove() {
   const [currentBooking, setCurrentBooking] = useState<Booking | null>(null);
   const [submitLoading, setSubmitLoading] = useState(false);
   const [form] = Form.useForm();
+  const [filterForm] = Form.useForm<FilterFormValues>();
+  const [benches, setBenches] = useState<Bench[]>([]);
+  const [routes, setRoutes] = useState<ApprovalRoute[]>([]);
+  const [filterValues, setFilterValues] = useState<FilterFormValues>({});
 
   const userRole = currentUser?.role || 'student';
   const isApprover = APPROVER_ROLES.includes(userRole);
@@ -103,16 +122,97 @@ export default function ToApprove() {
     }
   };
 
+  const loadBenches = async () => {
+    try {
+      const res = await api.get<ApiResponse<Bench[]>>('/benches');
+      if (res.success && res.data) {
+        setBenches(res.data);
+      }
+    } catch {
+    }
+  };
+
+  const loadRoutes = async () => {
+    try {
+      const res = await api.get<ApiResponse<ApprovalRoute[]>>('/routes');
+      if (res.success && res.data) {
+        setRoutes(res.data);
+      }
+    } catch {
+    }
+  };
+
+  const handleFilterChange = (_: FilterFormValues, allValues: FilterFormValues) => {
+    setFilterValues(allValues);
+  };
+
+  const handleReset = () => {
+    filterForm.resetFields();
+    setFilterValues({});
+  };
+
+  const nodeOptions = useMemo(() => {
+    const nodeSet = new Set<string>();
+    routes.forEach((route) => {
+      route.nodes?.forEach((node) => {
+        nodeSet.add(node.role);
+      });
+    });
+    return Array.from(nodeSet).map((role) => ({
+      value: role,
+      label: ROLE_LABEL[role as keyof typeof ROLE_LABEL] || role,
+    }));
+  }, [routes]);
+
   useEffect(() => {
     if (isApprover) {
       loadPending();
       loadApproved();
+      loadBenches();
+      loadRoutes();
     }
   }, [currentUser?.id, isApprover]);
 
+  const filterBookings = (bookings: Booking[]): Booking[] => {
+    return bookings.filter((booking) => {
+      if (filterValues.benchIds && filterValues.benchIds.length > 0) {
+        if (!filterValues.benchIds.includes(booking.benchId)) {
+          return false;
+        }
+      }
+
+      if (filterValues.riskLevels && filterValues.riskLevels.length > 0) {
+        if (!filterValues.riskLevels.includes(booking.riskLevel)) {
+          return false;
+        }
+      }
+
+      if (filterValues.createdAtRange && filterValues.createdAtRange.length === 2) {
+        const [start, end] = filterValues.createdAtRange;
+        const createdAt = dayjs(booking.createdAt);
+        if (createdAt.isBefore(start.startOf('day')) || createdAt.isAfter(end.endOf('day'))) {
+          return false;
+        }
+      }
+
+      if (filterValues.currentNode) {
+        const statusText = (booking as any).statusText || '';
+        const roleLabel = ROLE_LABEL[filterValues.currentNode as keyof typeof ROLE_LABEL] || filterValues.currentNode;
+        if (!statusText.includes(`待${roleLabel}`)) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  };
+
+  const filteredPending = useMemo(() => filterBookings(pendingList), [pendingList, filterValues]);
+  const filteredApproved = useMemo(() => filterBookings(approvedList), [approvedList, filterValues]);
+
   const currentData = useMemo(() => {
-    return activeTab === 'pending' ? pendingList : approvedList;
-  }, [activeTab, pendingList, approvedList]);
+    return activeTab === 'pending' ? filteredPending : filteredApproved;
+  }, [activeTab, filteredPending, filteredApproved]);
 
   const openApproveModal = (booking: Booking) => {
     setCurrentBooking(booking);
@@ -383,11 +483,11 @@ export default function ToApprove() {
   const tabItems: TabsProps['items'] = [
     {
       key: 'pending',
-      label: `待我审批 (${pendingList.length})`,
+      label: `待我审批 (${filteredPending.length}/${pendingList.length})`,
     },
     {
       key: 'approved',
-      label: `我已审批 (${approvedList.length})`,
+      label: `我已审批 (${filteredApproved.length}/${approvedList.length})`,
     },
   ];
 
@@ -441,6 +541,73 @@ export default function ToApprove() {
         title="审批中心"
         styles={{ body: { padding: '16px 24px 0' } }}
       >
+        <Form
+          form={filterForm}
+          layout="vertical"
+          onValuesChange={handleFilterChange}
+          initialValues={{}}
+          className="mb-4"
+        >
+          <Row gutter={16}>
+            <Col span={6}>
+              <Form.Item label="实验台" name="benchIds">
+                <Select
+                  mode="multiple"
+                  placeholder="请选择实验台"
+                  allowClear
+                  options={benches.map((b) => ({
+                    value: b.id,
+                    label: `${b.name}（${b.location}）`,
+                  }))}
+                  showSearch
+                  optionFilterProp="label"
+                  maxTagCount="responsive"
+                />
+              </Form.Item>
+            </Col>
+            <Col span={6}>
+              <Form.Item label="危险等级" name="riskLevels">
+                <Select
+                  mode="multiple"
+                  placeholder="请选择危险等级"
+                  allowClear
+                  options={(['low', 'medium', 'high'] as RiskLevel[]).map((r) => ({
+                    value: r,
+                    label: (
+                      <span style={{ color: RISK_COLOR[r] }}>
+                        {RISK_LABEL[r]}
+                      </span>
+                    ),
+                  }))}
+                  maxTagCount="responsive"
+                />
+              </Form.Item>
+            </Col>
+            <Col span={6}>
+              <Form.Item label="提交时间" name="createdAtRange">
+                <RangePicker style={{ width: '100%' }} format="YYYY-MM-DD" />
+              </Form.Item>
+            </Col>
+            <Col span={6}>
+              <Form.Item label="当前审批节点" name="currentNode">
+                <Select
+                  placeholder="请选择审批节点"
+                  allowClear
+                  options={nodeOptions}
+                />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Row justify="end">
+            <Col>
+              <Space>
+                <Button icon={<ReloadOutlined />} onClick={handleReset}>
+                  重置
+                </Button>
+              </Space>
+            </Col>
+          </Row>
+        </Form>
         <Tabs
           activeKey={activeTab}
           onChange={(k) => setActiveTab(k as TabKey)}

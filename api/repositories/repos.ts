@@ -92,6 +92,17 @@ export const slotRepo = {
         .all(benchId, startDate, endDate)
     );
   },
+  findByBenchAndSlots(benchId: number, slots: Array<{ date: string; startTime: string; endTime: string }>): TimeSlot[] {
+    if (slots.length === 0) return [];
+    const conditions = slots.map(() => '(date = ? AND start_time = ? AND end_time = ?)').join(' OR ');
+    const params: any[] = [benchId];
+    slots.forEach((s) => params.push(s.date, s.startTime, s.endTime));
+    return camelArr<TimeSlot>(
+      db
+        .prepare(`SELECT * FROM time_slots WHERE bench_id = ? AND (${conditions}) ORDER BY date, start_time`)
+        .all(...params)
+    );
+  },
   findByIds(ids: number[]): TimeSlot[] {
     if (ids.length === 0) return [];
     const placeholders = ids.map(() => '?').join(',');

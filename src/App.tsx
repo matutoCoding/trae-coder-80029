@@ -13,6 +13,7 @@ import BenchDetail from '@/pages/BenchDetail';
 import MyBookings from '@/pages/MyBookings';
 import ToApprove from '@/pages/ToApprove';
 import AccessCheckin from '@/pages/AccessCheckin';
+import ScheduleCalendar from '@/pages/ScheduleCalendar';
 
 dayjs.locale('zh-cn');
 
@@ -55,6 +56,7 @@ export default function App() {
               <Route path="/my-bookings" element={<MyBookings />} />
               <Route path="/to-approve" element={<ToApprove />} />
               <Route path="/access-checkin" element={<AccessCheckin />} />
+              <Route path="/schedule-calendar" element={<ScheduleCalendar />} />
             </Route>
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
             <Route path="*" element={<Navigate to="/dashboard" replace />} />

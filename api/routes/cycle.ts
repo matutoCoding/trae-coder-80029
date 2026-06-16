@@ -31,6 +31,41 @@ function buildSlots(rule: CycleRule): Omit<TimeSlot, 'id'>[] {
   }));
 }
 
+function getSlotKey(slot: { date: string; startTime: string; endTime: string }): string {
+  return `${slot.date}|${slot.startTime}|${slot.endTime}`;
+}
+
+interface ClassifiedSlots {
+  toInsert: Array<{ date: string; startTime: string; endTime: string; benchId: number }>;
+  toSkip: Array<{ date: string; startTime: string; endTime: string; benchId: number }>;
+  relatedBookings: Array<{ date: string; startTime: string; endTime: string; benchId: number }>;
+}
+
+function classifySlots(generated: Omit<TimeSlot, 'id'>[], existing: TimeSlot[]): ClassifiedSlots {
+  const existingMap = new Map<string, TimeSlot>();
+  for (const s of existing) {
+    existingMap.set(getSlotKey(s), s);
+  }
+
+  const toInsert: ClassifiedSlots['toInsert'] = [];
+  const toSkip: ClassifiedSlots['toSkip'] = [];
+  const relatedBookings: ClassifiedSlots['relatedBookings'] = [];
+
+  for (const slot of generated) {
+    const key = getSlotKey(slot);
+    const exist = existingMap.get(key);
+    if (!exist) {
+      toInsert.push({ date: slot.date, startTime: slot.startTime, endTime: slot.endTime, benchId: slot.benchId });
+    } else if (exist.status === 'booked' || exist.status === 'occupied') {
+      relatedBookings.push({ date: exist.date, startTime: exist.startTime, endTime: exist.endTime, benchId: exist.benchId });
+    } else {
+      toSkip.push({ date: exist.date, startTime: exist.startTime, endTime: exist.endTime, benchId: exist.benchId });
+    }
+  }
+
+  return { toInsert, toSkip, relatedBookings };
+}
+
 router.get('/', (req: Request, res: Response): void => {
   try {
     const list = cycleRuleRepo.findAll();
@@ -97,6 +132,12 @@ router.post('/:id/preview', (req: Request, res: Response): void => {
       return;
     }
     const slots = buildSlots(rule);
+    const existing = slotRepo.findByBenchAndSlots(
+      rule.benchId,
+      slots.map((s) => ({ date: s.date, startTime: s.startTime, endTime: s.endTime }))
+    );
+    const classified = classifySlots(slots, existing);
+
     const dates = [...new Set(slots.map((s) => s.date))];
     res.json({
       success: true,
@@ -106,6 +147,22 @@ router.post('/:id/preview', (req: Request, res: Response): void => {
         sampleDates: dates.slice(0, 10),
         startDate: rule.startDate,
         endDate: rule.endDate,
+        insertCount: classified.toInsert.length,
+        skipCount: classified.toSkip.length,
+        bookingRelatedCount: classified.relatedBookings.length,
+        total: slots.length,
+        toInsert: {
+          count: classified.toInsert.length,
+          sample: classified.toInsert.slice(0, 5),
+        },
+        toSkip: {
+          count: classified.toSkip.length,
+          sample: classified.toSkip.slice(0, 5),
+        },
+        relatedBookings: {
+          count: classified.relatedBookings.length,
+          sample: classified.relatedBookings.slice(0, 5),
+        },
       },
     });
   } catch (err: any) {
@@ -122,10 +179,24 @@ router.post('/:id/generate', (req: Request, res: Response): void => {
       return;
     }
     const slots = buildSlots(rule);
+    const existing = slotRepo.findByBenchAndSlots(
+      rule.benchId,
+      slots.map((s) => ({ date: s.date, startTime: s.startTime, endTime: s.endTime }))
+    );
+    const classified = classifySlots(slots, existing);
     const result = slotRepo.upsertMany(slots);
     res.json({
       success: true,
-      data: { inserted: result.inserted, skipped: result.skipped, total: slots.length },
+      data: {
+        inserted: result.inserted,
+        skipped: result.skipped,
+        total: slots.length,
+        details: {
+          inserted: classified.toInsert.slice(0, 10),
+          skipped: classified.toSkip.slice(0, 10),
+          bookingRelated: classified.relatedBookings.slice(0, 10),
+        },
+      },
       message: `新生成 ${result.inserted} 条，跳过已存在 ${result.skipped} 条，共 ${slots.length} 条`,
     });
   } catch (err: any) {

@@ -13,7 +13,14 @@ import {
   Avatar,
   Divider,
   Tooltip,
+  Statistic,
+  Row,
+  Col,
 } from 'antd';
+import dayjs from 'dayjs';
+import duration from 'dayjs/plugin/duration';
+
+dayjs.extend(duration);
 import {
   ArrowLeftOutlined,
   CheckCircleFilled,
@@ -32,6 +39,7 @@ import type {
   ChainNodeState,
   Booking,
   ApiResponse,
+  ApprovalRecord,
   RiskLevel,
   UserRole,
 } from 'shared/types';
@@ -78,13 +86,30 @@ function getRoleColor(role: UserRole): string {
   }
 }
 
+function formatDuration(ms: number): string {
+  if (ms < 0) return '0分钟';
+  const duration = dayjs.duration(ms);
+  const days = Math.floor(duration.asDays());
+  const hours = duration.hours();
+  const minutes = duration.minutes();
+
+  const parts: string[] = [];
+  if (days > 0) parts.push(`${days}天`);
+  if (hours > 0) parts.push(`${hours}小时`);
+  if (minutes > 0 || parts.length === 0) parts.push(`${minutes}分钟`);
+
+  return parts.join('');
+}
+
 interface NodeVisualProps {
   state: ChainNodeState;
   index: number;
   isLast: boolean;
+  prevRecord?: ApprovalRecord;
+  bookingCreatedAt: string;
 }
 
-function ChainNode({ state, index, isLast }: NodeVisualProps) {
+function ChainNode({ state, index, isLast, prevRecord, bookingCreatedAt }: NodeVisualProps) {
   const isApproved = state.status === 'approved';
   const isRejected = state.status === 'rejected';
   const isCurrent = state.status === 'current';
@@ -131,6 +156,55 @@ function ChainNode({ state, index, isLast }: NodeVisualProps) {
     skipped: '已跳过',
   }[state.status];
 
+  const getExtraInfo = () => {
+    if ((isApproved || isRejected) && state.record) {
+      const currentTime = dayjs(state.record.createdAt);
+      const prevTime = prevRecord
+        ? dayjs(prevRecord.createdAt)
+        : dayjs(bookingCreatedAt);
+      const duration = currentTime.diff(prevTime);
+
+      return (
+        <div className="mt-2 space-y-1">
+          <div className="text-xs text-slate-500 font-mono">
+            {state.record.createdAt}
+          </div>
+          <Tag color="default" className="!m-0 !text-xs">
+            耗时：{formatDuration(duration)}
+          </Tag>
+        </div>
+      );
+    }
+
+    if (isCurrent) {
+      const currentTime = dayjs();
+      const prevTime = prevRecord
+        ? dayjs(prevRecord.createdAt)
+        : dayjs(bookingCreatedAt);
+      const waitDuration = currentTime.diff(prevTime);
+
+      return (
+        <div className="mt-2">
+          <Tag color="blue" className="!m-0 !text-xs">
+            已等待 {formatDuration(waitDuration)}
+          </Tag>
+        </div>
+      );
+    }
+
+    if (isPending) {
+      return (
+        <div className="mt-2">
+          <Text type="secondary" className="text-xs">
+            预计处理人：{ROLE_LABEL[state.node.role]}
+          </Text>
+        </div>
+      );
+    }
+
+    return null;
+  };
+
   return (
     <div className="flex items-start shrink-0">
       <div className="flex flex-col items-center">
@@ -171,6 +245,7 @@ function ChainNode({ state, index, isLast }: NodeVisualProps) {
               {statusLabel}
             </Tag>
           </div>
+          {getExtraInfo()}
         </div>
       </div>
       {!isLast && (
@@ -390,6 +465,62 @@ export default function ApprovalChain() {
                     animation: chainPulse 2s ease-in-out infinite;
                   }
                 `}</style>
+                {chain?.nodes && chain.nodes.length > 0 && (
+                  <div className="mb-4">
+                    <Row gutter={16}>
+                      <Col span={8}>
+                        <Statistic
+                          title="审批进度"
+                          value={`${chain.nodes.filter(n => n.status === 'approved').length}/${chain.nodes.length}`}
+                          prefix={<CheckCircleFilled style={{ color: '#52c41a' }} />}
+                          valueStyle={{ color: '#52c41a' }}
+                        />
+                      </Col>
+                      <Col span={8}>
+                        <Statistic
+                          title="总耗时"
+                          value={formatDuration(
+                            booking.records && booking.records.length > 0
+                              ? dayjs(
+                                  booking.records
+                                    .slice()
+                                    .sort((a, b) =>
+                                      new Date(b.createdAt).getTime() -
+                                      new Date(a.createdAt).getTime()
+                                    )[0].createdAt
+                                ).diff(dayjs(booking.createdAt))
+                              : dayjs().diff(dayjs(booking.createdAt))
+                          )}
+                          prefix={<ClockCircleOutlined style={{ color: '#1677ff' }} />}
+                        />
+                      </Col>
+                      <Col span={8}>
+                        {chain.nodes.some(n => n.status === 'current') && (
+                          <Statistic
+                            title="当前节点已等待"
+                            value={formatDuration(
+                              dayjs().diff(
+                                booking.records && booking.records.length > 0
+                                  ? dayjs(
+                                      booking.records
+                                        .slice()
+                                        .sort((a, b) =>
+                                          new Date(b.createdAt).getTime() -
+                                          new Date(a.createdAt).getTime()
+                                        )[0].createdAt
+                                    )
+                                  : dayjs(booking.createdAt)
+                              )
+                            )}
+                            prefix={<ClockCircleOutlined style={{ color: '#fa8c16' }} />}
+                            valueStyle={{ color: '#fa8c16' }}
+                          />
+                        )}
+                      </Col>
+                    </Row>
+                    <Divider className="!my-4" />
+                  </div>
+                )}
                 {!chain?.nodes || chain.nodes.length === 0 ? (
                   <Empty
                     description="暂无审批节点"
@@ -399,14 +530,27 @@ export default function ApprovalChain() {
                 ) : (
                   <div className="overflow-x-auto pb-4 -mx-4 px-4">
                     <div className="flex items-start min-w-max py-4">
-                      {chain.nodes.map((state, idx) => (
-                        <ChainNode
-                          key={state.node.id || idx}
-                          state={state}
-                          index={idx}
-                          isLast={idx === chain.nodes.length - 1}
-                        />
-                      ))}
+                      {chain.nodes.map((state, idx) => {
+                        const prevApprovedRecords = chain.nodes
+                          .slice(0, idx)
+                          .filter(n => n.record)
+                          .map(n => n.record!);
+                        const prevRecord =
+                          prevApprovedRecords.length > 0
+                            ? prevApprovedRecords[prevApprovedRecords.length - 1]
+                            : undefined;
+
+                        return (
+                          <ChainNode
+                            key={state.node.id || idx}
+                            state={state}
+                            index={idx}
+                            isLast={idx === chain.nodes.length - 1}
+                            prevRecord={prevRecord}
+                            bookingCreatedAt={booking.createdAt}
+                          />
+                        );
+                      })}
                     </div>
                   </div>
                 )}
@@ -430,15 +574,21 @@ export default function ApprovalChain() {
                 ) : (
                   <Timeline
                     className="!m-0"
-                    items={booking.records
-                      .slice()
-                      .sort(
-                        (a, b) =>
-                          new Date(a.createdAt).getTime() -
-                          new Date(b.createdAt).getTime()
-                      )
-                      .map((record) => {
+                    items={(() => {
+                      const sortedRecords = booking.records
+                        .slice()
+                        .sort(
+                          (a, b) =>
+                            new Date(a.createdAt).getTime() -
+                            new Date(b.createdAt).getTime()
+                        );
+                      return sortedRecords.map((record, idx) => {
                         const isApprove = record.action === 'approve';
+                        const prevRecord = idx === 0 ? null : sortedRecords[idx - 1];
+                        const duration = prevRecord
+                          ? dayjs(record.createdAt).diff(dayjs(prevRecord.createdAt))
+                          : dayjs(record.createdAt).diff(dayjs(booking.createdAt));
+
                         return {
                           dot: isApprove ? (
                             <CheckCircleFilled
@@ -481,6 +631,9 @@ export default function ApprovalChain() {
                                 <Tag className="!m-0" color="default">
                                   节点 #{record.nodeIndex + 1}
                                 </Tag>
+                                <Tag className="!m-0" color="default">
+                                  耗时：{formatDuration(duration)}
+                                </Tag>
                                 <span className="text-xs text-slate-400 ml-auto font-mono">
                                   {record.createdAt}
                                 </span>
@@ -495,7 +648,8 @@ export default function ApprovalChain() {
                             </div>
                           ),
                         };
-                      })}
+                      });
+                    })()}
                   />
                 )}
               </Card>

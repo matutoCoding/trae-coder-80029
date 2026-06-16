@@ -18,6 +18,10 @@ import {
   Empty,
   App,
   Typography,
+  Tabs,
+  Card,
+  Collapse,
+  Alert,
 } from 'antd';
 import {
   PlusOutlined,
@@ -63,18 +67,42 @@ interface CycleRuleFormData {
   endDate: dayjs.Dayjs;
 }
 
+interface SlotDetail {
+  date: string;
+  startTime: string;
+  endTime: string;
+  benchId: number;
+}
+
+interface SlotCategory {
+  count: number;
+  sample: SlotDetail[];
+}
+
 interface PreviewData {
   previewCount: number;
   uniqueDates: number;
   sampleDates: string[];
   startDate: string;
   endDate: string;
+  insertCount: number;
+  skipCount: number;
+  bookingRelatedCount: number;
+  total: number;
+  toInsert: SlotCategory;
+  toSkip: SlotCategory;
+  relatedBookings: SlotCategory;
 }
 
 interface GenerateData {
   inserted: number;
   skipped: number;
   total: number;
+  details: {
+    inserted: SlotDetail[];
+    skipped: SlotDetail[];
+    bookingRelated: SlotDetail[];
+  };
 }
 
 export default function CycleRules() {
@@ -502,7 +530,7 @@ export default function CycleRules() {
         title="预览生成结果"
         open={previewOpen}
         onClose={() => setPreviewOpen(false)}
-        width={480}
+        width={640}
         footer={
           previewData ? (
             <div className="flex justify-end gap-2">
@@ -510,7 +538,7 @@ export default function CycleRules() {
               <Button
                 type="primary"
                 onClick={handlePreviewConfirm}
-                disabled={previewData.previewCount === 0}
+                disabled={previewData.insertCount === 0}
               >
                 确认生成
               </Button>
@@ -520,42 +548,137 @@ export default function CycleRules() {
       >
         <Spin spinning={previewLoading}>
           {previewData ? (
-            <div className="space-y-6">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="rounded-lg bg-blue-50 p-4">
-                  <div className="text-sm text-slate-500">预计生成</div>
-                  <div className="mt-1 text-2xl font-bold text-blue-600">
-                    {previewData.previewCount}
-                  </div>
-                  <div className="text-xs text-slate-400 mt-1">条时段（已存在的会自动跳过）</div>
-                </div>
-                <div className="rounded-lg bg-emerald-50 p-4">
-                  <div className="text-sm text-slate-500">覆盖天数</div>
-                  <div className="mt-1 text-2xl font-bold text-emerald-600">
-                    {previewData.uniqueDates}
-                  </div>
-                  <div className="text-xs text-slate-400 mt-1">个不同日期</div>
-                </div>
+            <div className="space-y-4">
+              <div className="grid grid-cols-3 gap-3">
+                <Card size="small" className="!bg-green-50">
+                  <div className="text-sm text-slate-500">将新增</div>
+                  <div className="text-xl font-bold text-green-600">{previewData.toInsert.count}</div>
+                </Card>
+                <Card size="small" className="!bg-orange-50">
+                  <div className="text-sm text-slate-500">将跳过</div>
+                  <div className="text-xl font-bold text-orange-600">{previewData.toSkip.count}</div>
+                </Card>
+                <Card size="small" className="!bg-red-50">
+                  <div className="text-sm text-slate-500">关联预约</div>
+                  <div className="text-xl font-bold text-red-600">{previewData.relatedBookings.count}</div>
+                </Card>
               </div>
 
-              <div className="rounded-lg border border-slate-200 p-4">
-                <div className="text-sm text-slate-500 mb-2">
-                  日期范围：
-                  <span className="font-mono text-slate-700">
-                    {previewData.startDate} ~ {previewData.endDate}
-                  </span>
-                </div>
-                <div className="text-sm text-slate-500 mb-3">
-                  示例日期（前 {previewData.sampleDates.length} 个）：
-                </div>
-                <div className="flex flex-wrap gap-2 max-h-64 overflow-y-auto">
-                  {previewData.sampleDates.map((d) => (
-                    <Tag key={d} color="blue">
-                      {d}
-                    </Tag>
-                  ))}
-                </div>
-              </div>
+              <Tabs
+                defaultActiveKey="insert"
+                items={[
+                  {
+                    key: 'insert',
+                    label: `将新增 (${previewData.toInsert.count})`,
+                    children: (
+                      <div>
+                        <div className="text-sm text-slate-500 mb-3">
+                          共 {previewData.toInsert.count} 条时段将被新增到数据库
+                        </div>
+                        {previewData.toInsert.sample.length > 0 ? (
+                          <Table
+                            size="small"
+                            dataSource={previewData.toInsert.sample}
+                            rowKey={(r) => `${r.date}-${r.startTime}`}
+                            pagination={false}
+                            columns={[
+                              { title: '日期', dataIndex: 'date', key: 'date' },
+                              {
+                                title: '时间',
+                                key: 'time',
+                                render: (_, r) => (
+                                  <span className="font-mono">
+                                    {r.startTime.slice(0, 5)} ~ {r.endTime.slice(0, 5)}
+                                  </span>
+                                ),
+                              },
+                            ]}
+                          />
+                        ) : (
+                          <Empty description="无新增时段" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+                        )}
+                      </div>
+                    ),
+                  },
+                  {
+                    key: 'skip',
+                    label: `将跳过 (${previewData.toSkip.count})`,
+                    children: (
+                      <div>
+                        <div className="text-sm text-slate-500 mb-3">
+                          共 {previewData.toSkip.count} 条时段已存在且未被预约，将跳过
+                        </div>
+                        {previewData.toSkip.sample.length > 0 ? (
+                          <Table
+                            size="small"
+                            dataSource={previewData.toSkip.sample}
+                            rowKey={(r) => `${r.date}-${r.startTime}`}
+                            pagination={false}
+                            columns={[
+                              { title: '日期', dataIndex: 'date', key: 'date' },
+                              {
+                                title: '时间',
+                                key: 'time',
+                                render: (_, r) => (
+                                  <span className="font-mono">
+                                    {r.startTime.slice(0, 5)} ~ {r.endTime.slice(0, 5)}
+                                  </span>
+                                ),
+                              },
+                            ]}
+                          />
+                        ) : (
+                          <Empty description="无跳过时段" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+                        )}
+                      </div>
+                    ),
+                  },
+                  {
+                    key: 'booking',
+                    label: `关联预约 (${previewData.relatedBookings.count})`,
+                    children: (
+                      <div>
+                        <Alert
+                          type="error"
+                          showIcon
+                          message="已有预约绑定，生成时会保留"
+                          className="mb-3"
+                        />
+                        <div className="text-sm text-slate-500 mb-3">
+                          共 {previewData.relatedBookings.count} 条时段已被预约，将保留原有状态
+                        </div>
+                        {previewData.relatedBookings.sample.length > 0 ? (
+                          <Table
+                            size="small"
+                            dataSource={previewData.relatedBookings.sample}
+                            rowKey={(r) => `${r.date}-${r.startTime}`}
+                            pagination={false}
+                            columns={[
+                              {
+                                title: '日期',
+                                dataIndex: 'date',
+                                key: 'date',
+                                render: (v) => <span className="text-red-600">{v}</span>,
+                              },
+                              {
+                                title: '时间',
+                                key: 'time',
+                                render: (_, r) => (
+                                  <span className="font-mono text-red-600">
+                                    {r.startTime.slice(0, 5)} ~ {r.endTime.slice(0, 5)}
+                                  </span>
+                                ),
+                              },
+                            ]}
+                          />
+                        ) : (
+                          <Empty description="无关联预约时段" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+                        )}
+                      </div>
+                    ),
+                  },
+                ]}
+              />
             </div>
           ) : (
             !previewLoading && <Empty description="暂无预览数据" />
@@ -578,7 +701,7 @@ export default function CycleRules() {
         }
         closable={!generateLoading}
         maskClosable={false}
-        width={520}
+        width={680}
       >
         <div className="py-4">
           {!generateResult && !generateError && (
@@ -588,35 +711,144 @@ export default function CycleRules() {
             </div>
           )}
           {generateResult && (
-            <Result
-              status="success"
-              title="生成完成"
-              subTitle={
-                <div className="text-sm space-y-1">
-                  <div>
-                    新生成{' '}
-                    <span className="font-bold text-green-600">
+            <div className="space-y-4">
+              <Result
+                status="success"
+                title="生成完成"
+                subTitle={`新生成 ${generateResult.inserted} 条，跳过 ${generateResult.skipped} 条，共 ${generateResult.total} 条`}
+              />
+
+              <div className="grid grid-cols-3 gap-4">
+                <Card className="!bg-green-50 !border-green-200">
+                  <div className="text-center">
+                    <div className="text-sm text-slate-500">新增成功</div>
+                    <div className="text-3xl font-bold text-green-600 mt-1">
                       {generateResult.inserted}
-                    </span>{' '}
-                    条
+                    </div>
+                    <div className="text-xs text-slate-400 mt-1">条时段</div>
                   </div>
-                  <div>
-                    跳过已存在{' '}
-                    <span className="font-bold text-orange-500">
+                </Card>
+                <Card className="!bg-orange-50 !border-orange-200">
+                  <div className="text-center">
+                    <div className="text-sm text-slate-500">跳过</div>
+                    <div className="text-3xl font-bold text-orange-600 mt-1">
                       {generateResult.skipped}
-                    </span>{' '}
-                    条
+                    </div>
+                    <div className="text-xs text-slate-400 mt-1">条已存在</div>
                   </div>
-                  <div>
-                    共{' '}
-                    <span className="font-mono font-bold text-blue-600">
-                      {generateResult.total}
-                    </span>{' '}
-                    条
+                </Card>
+                <Card className="!bg-red-50 !border-red-200">
+                  <div className="text-center">
+                    <div className="text-sm text-slate-500">关联预约（保留）</div>
+                    <div className="text-3xl font-bold text-red-600 mt-1">
+                      {generateResult.details.bookingRelated.length}
+                    </div>
+                    <div className="text-xs text-slate-400 mt-1">条时段</div>
                   </div>
-                </div>
-              }
-            />
+                </Card>
+              </div>
+
+              <Collapse
+                size="small"
+                items={[
+                  {
+                    key: 'inserted',
+                    label: `新增成功明细（前 ${generateResult.details.inserted.length} 条）`,
+                    children:
+                      generateResult.details.inserted.length > 0 ? (
+                        <Table
+                          size="small"
+                          dataSource={generateResult.details.inserted}
+                          rowKey={(r) => `${r.date}-${r.startTime}`}
+                          pagination={false}
+                          columns={[
+                            { title: '日期', dataIndex: 'date', key: 'date' },
+                            {
+                              title: '时间',
+                              key: 'time',
+                              render: (_, r) => (
+                                <span className="font-mono">
+                                  {r.startTime.slice(0, 5)} ~ {r.endTime.slice(0, 5)}
+                                </span>
+                              ),
+                            },
+                            { title: '实验台ID', dataIndex: 'benchId', key: 'benchId', width: 100 },
+                          ]}
+                        />
+                      ) : (
+                        <Empty description="无新增时段" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+                      ),
+                  },
+                  {
+                    key: 'skipped',
+                    label: `跳过多明细（前 ${generateResult.details.skipped.length} 条）`,
+                    children:
+                      generateResult.details.skipped.length > 0 ? (
+                        <Table
+                          size="small"
+                          dataSource={generateResult.details.skipped}
+                          rowKey={(r) => `${r.date}-${r.startTime}`}
+                          pagination={false}
+                          columns={[
+                            { title: '日期', dataIndex: 'date', key: 'date' },
+                            {
+                              title: '时间',
+                              key: 'time',
+                              render: (_, r) => (
+                                <span className="font-mono">
+                                  {r.startTime.slice(0, 5)} ~ {r.endTime.slice(0, 5)}
+                                </span>
+                              ),
+                            },
+                            { title: '实验台ID', dataIndex: 'benchId', key: 'benchId', width: 100 },
+                          ]}
+                        />
+                      ) : (
+                        <Empty description="无跳过多时段" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+                      ),
+                  },
+                  {
+                    key: 'bookingRelated',
+                    label: `关联预约明细（前 ${generateResult.details.bookingRelated.length} 条）`,
+                    children:
+                      generateResult.details.bookingRelated.length > 0 ? (
+                        <Table
+                          size="small"
+                          dataSource={generateResult.details.bookingRelated}
+                          rowKey={(r) => `${r.date}-${r.startTime}`}
+                          pagination={false}
+                          columns={[
+                            {
+                              title: '日期',
+                              dataIndex: 'date',
+                              key: 'date',
+                              render: (v) => <span className="text-red-600">{v}</span>,
+                            },
+                            {
+                              title: '时间',
+                              key: 'time',
+                              render: (_, r) => (
+                                <span className="font-mono text-red-600">
+                                  {r.startTime.slice(0, 5)} ~ {r.endTime.slice(0, 5)}
+                                </span>
+                              ),
+                            },
+                            {
+                              title: '实验台ID',
+                              dataIndex: 'benchId',
+                              key: 'benchId',
+                              width: 100,
+                              render: (v) => <span className="text-red-600">{v}</span>,
+                            },
+                          ]}
+                        />
+                      ) : (
+                        <Empty description="无关联预约时段" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+                      ),
+                  },
+                ]}
+              />
+            </div>
           )}
           {generateError && (
             <Result status="error" title="生成失败" subTitle={generateError} />

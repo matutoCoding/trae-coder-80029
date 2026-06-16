@@ -14,6 +14,7 @@ import {
   DashboardOutlined,
   ExperimentOutlined,
   ScheduleOutlined,
+  CalendarOutlined,
   BranchesOutlined,
   FileTextOutlined,
   CheckCircleOutlined,
@@ -42,6 +43,11 @@ const menuItems: MenuProps['items'] = [
     key: '/benches',
     icon: <ExperimentOutlined />,
     label: <Link to="/benches">实验台列表</Link>,
+  },
+  {
+    key: '/schedule-calendar',
+    icon: <CalendarOutlined />,
+    label: <Link to="/schedule-calendar">排期总览</Link>,
   },
   {
     key: '/cycle-rules',
@@ -73,6 +79,7 @@ const menuItems: MenuProps['items'] = [
 const pathTitleMap: Record<string, string> = {
   '/dashboard': '仪表盘',
   '/benches': '实验台列表',
+  '/schedule-calendar': '排期总览',
   '/cycle-rules': '周期规则',
   '/approval-routes': '审批路由',
   '/my-bookings': '我的预约',
