@@ -11,16 +11,13 @@ import { STATUS_LABEL, RISK_LABEL, RISK_COLOR } from 'shared/types';
 
 type TabKey = 'all' | 'pending' | 'approved' | 'rejected' | 'checked_in';
 
-const STATUS_COLORS: Record<BookingStatus, string> = {
-  pending: 'gold',
-  tutor_approved: 'blue',
-  safety_approved: 'cyan',
-  admin_approved: 'purple',
-  approved: 'green',
-  rejected: 'red',
-  checked_in: 'geekblue',
-  cancelled: 'default',
-};
+function getStatusColor(status: BookingStatus, statusText?: string): string {
+  if (statusText && statusText.includes('待')) return 'blue';
+  if (status === 'approved' || status === 'checked_in') return 'green';
+  if (status === 'rejected') return 'red';
+  if (status === 'cancelled') return 'default';
+  return 'blue';
+}
 
 const PENDING_STATUSES: BookingStatus[] = [
   'pending',
@@ -188,9 +185,11 @@ export default function MyBookings() {
       title: '状态',
       key: 'status',
       width: 110,
-      render: (_: any, r: Booking) => (
-        <Tag color={STATUS_COLORS[r.status]}>{STATUS_LABEL[r.status]}</Tag>
-      ),
+      render: (_: any, r: Booking) => {
+        const text = (r as any).statusText || STATUS_LABEL[r.status];
+        const color = getStatusColor(r.status, (r as any).statusText);
+        return <Tag color={color}>{text}</Tag>;
+      },
     },
     {
       title: '申请时间',

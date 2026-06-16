@@ -100,7 +100,7 @@ interface SlotUpdateItem {
   date?: string;
 }
 
-router.patch('/:id/slots', (req: Request, res: Response): void => {
+router.post('/:id/slots', (req: Request, res: Response): void => {
   try {
     const benchId = Number(req.params.id);
     const exist = benchRepo.findById(benchId);

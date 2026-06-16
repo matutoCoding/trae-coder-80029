@@ -1,19 +1,13 @@
 import { create } from 'zustand';
-
-export type UserRole = 'student' | 'teacher' | 'admin' | 'approver';
-
-export interface User {
-  id: number;
-  name: string;
-  role: UserRole;
-  username?: string;
-}
+import type { User, UserRole } from 'shared/types';
 
 const mockUsers: User[] = [
-  { id: 1, name: '张同学', role: 'student', username: 'stu001' },
-  { id: 2, name: '李老师', role: 'teacher', username: 'tea001' },
-  { id: 3, name: '王主任', role: 'approver', username: 'app001' },
-  { id: 4, name: '赵管理员', role: 'admin', username: 'adm001' },
+  { id: 1, name: '张同学', account: 'stu001', role: 'student', department: '化学学院', createdAt: '' },
+  { id: 2, name: '李同学', account: 'stu002', role: 'student', department: '物理学院', createdAt: '' },
+  { id: 3, name: '王导师', account: 'tut001', role: 'tutor', department: '化学学院', createdAt: '' },
+  { id: 4, name: '赵导师', account: 'tut002', role: 'tutor', department: '物理学院', createdAt: '' },
+  { id: 5, name: '陈管理员', account: 'adm001', role: 'admin', department: '实验中心', createdAt: '' },
+  { id: 6, name: '刘安全员', account: 'saf001', role: 'safety', department: '安全办公室', createdAt: '' },
 ];
 
 interface UserState {
@@ -31,14 +25,8 @@ export const useUserStore = create<UserState>((set) => ({
   users: mockUsers,
   switchUser: (userId: number) => {
     const user = mockUsers.find((u) => u.id === userId);
-    if (user) {
-      set({ currentUser: user });
-    }
+    if (user) set({ currentUser: user });
   },
-  loginAs: (user: User) => {
-    set({ currentUser: user });
-  },
-  logout: () => {
-    set({ currentUser: defaultUser });
-  },
+  loginAs: (user: User) => set({ currentUser: user }),
+  logout: () => set({ currentUser: defaultUser }),
 }));

@@ -72,7 +72,8 @@ interface PreviewData {
 }
 
 interface GenerateData {
-  generated: number;
+  inserted: number;
+  skipped: number;
   total: number;
 }
 
@@ -235,7 +236,7 @@ export default function CycleRules() {
       setGenerateProgress(100);
       if (res.success && res.data) {
         setGenerateResult(res.data);
-        message.success(res.message || '生成成功');
+        message.success(`新生成 ${res.data.inserted} 条，跳过已存在 ${res.data.skipped} 条，共 ${res.data.total} 条`);
         fetchData();
       } else {
         setGenerateError(res.message || '生成失败');
@@ -522,11 +523,11 @@ export default function CycleRules() {
             <div className="space-y-6">
               <div className="grid grid-cols-2 gap-4">
                 <div className="rounded-lg bg-blue-50 p-4">
-                  <div className="text-sm text-slate-500">总时段数</div>
+                  <div className="text-sm text-slate-500">预计生成</div>
                   <div className="mt-1 text-2xl font-bold text-blue-600">
                     {previewData.previewCount}
                   </div>
-                  <div className="text-xs text-slate-400 mt-1">条可预约时段</div>
+                  <div className="text-xs text-slate-400 mt-1">条时段（已存在的会自动跳过）</div>
                 </div>
                 <div className="rounded-lg bg-emerald-50 p-4">
                   <div className="text-sm text-slate-500">覆盖天数</div>
@@ -591,14 +592,28 @@ export default function CycleRules() {
               status="success"
               title="生成完成"
               subTitle={
-                <div className="text-sm">
-                  成功生成{' '}
-                  <span className="font-bold text-green-600">
-                    {generateResult.generated}
-                  </span>{' '}
-                  条时段，共{' '}
-                  <span className="font-mono">{generateResult.total}</span> 条
-                  （已存在的已跳过）
+                <div className="text-sm space-y-1">
+                  <div>
+                    新生成{' '}
+                    <span className="font-bold text-green-600">
+                      {generateResult.inserted}
+                    </span>{' '}
+                    条
+                  </div>
+                  <div>
+                    跳过已存在{' '}
+                    <span className="font-bold text-orange-500">
+                      {generateResult.skipped}
+                    </span>{' '}
+                    条
+                  </div>
+                  <div>
+                    共{' '}
+                    <span className="font-mono font-bold text-blue-600">
+                      {generateResult.total}
+                    </span>{' '}
+                    条
+                  </div>
                 </div>
               }
             />

@@ -194,7 +194,7 @@ export default function ApprovalRoutes() {
       } else {
         setTempNodes((prev) => [
           ...prev,
-          { ...vals, orderIndex: prev.length },
+          { ...vals, orderIndex: prev.length + 1 },
         ]);
       }
       setNodeModalOpen(false);
@@ -208,7 +208,7 @@ export default function ApprovalRoutes() {
     setTempNodes((prev) =>
       prev
         .filter((_, i) => i !== idx)
-        .map((n, i) => ({ ...n, orderIndex: i }))
+        .map((n, i) => ({ ...n, orderIndex: i + 1 }))
     );
   };
 
@@ -218,7 +218,7 @@ export default function ApprovalRoutes() {
       const target = dir === 'up' ? idx - 1 : idx + 1;
       if (target < 0 || target >= next.length) return next;
       [next[idx], next[target]] = [next[target], next[idx]];
-      return next.map((n, i) => ({ ...n, orderIndex: i }));
+      return next.map((n, i) => ({ ...n, orderIndex: i + 1 }));
     });
   };
 
@@ -303,7 +303,8 @@ export default function ApprovalRoutes() {
     const target = dir === 'up' ? idx - 1 : idx + 1;
     if (target < 0 || target >= newNodes.length) return;
     [newNodes[idx], newNodes[target]] = [newNodes[target], newNodes[idx]];
-    saveRouteNodes(route, newNodes);
+    const renumbered = newNodes.map((n, i) => ({ ...n, orderIndex: i + 1 }));
+    saveRouteNodes(route, renumbered);
   };
 
   const removeCardNode = (route: ApprovalRoute, idx: number) => {
@@ -313,7 +314,7 @@ export default function ApprovalRoutes() {
     }
     const newNodes = route.nodes
       .filter((_, i) => i !== idx)
-      .map((n, i) => ({ ...n, orderIndex: i }));
+      .map((n, i) => ({ ...n, orderIndex: i + 1 }));
     saveRouteNodes(route, newNodes);
   };
 
@@ -360,7 +361,7 @@ export default function ApprovalRoutes() {
               routeId: route.id,
               name: vals.name,
               role: vals.role,
-              orderIndex: route.nodes.length,
+              orderIndex: route.nodes.length + 1,
             },
           ];
           await saveRouteNodes(route, newNodes);

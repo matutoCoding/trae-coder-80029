@@ -122,11 +122,11 @@ router.post('/:id/generate', (req: Request, res: Response): void => {
       return;
     }
     const slots = buildSlots(rule);
-    const count = slotRepo.upsertMany(slots);
+    const result = slotRepo.upsertMany(slots);
     res.json({
       success: true,
-      data: { generated: count, total: slots.length },
-      message: `成功生成 ${count} 条时段记录（共 ${slots.length} 条，已存在的跳过）`,
+      data: { inserted: result.inserted, skipped: result.skipped, total: slots.length },
+      message: `新生成 ${result.inserted} 条，跳过已存在 ${result.skipped} 条，共 ${slots.length} 条`,
     });
   } catch (err: any) {
     res.json({ success: false, message: err.message });

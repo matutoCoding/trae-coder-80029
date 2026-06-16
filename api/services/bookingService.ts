@@ -209,6 +209,8 @@ export function enrichBooking(booking: Booking): Booking & {
   route?: ApprovalRoute;
   records?: ApprovalRecord[];
   slots?: any[];
+  nextNode?: ApprovalNode | null;
+  statusText?: string;
 } {
   const bench = benchRepo.findById(booking.benchId);
   const applicant = userRepo.findById(booking.applicantId);
@@ -216,7 +218,22 @@ export function enrichBooking(booking: Booking): Booking & {
   const route = routeRepo.findById(booking.routeId);
   const records = recordRepo.findByBooking(booking.id);
   const slots = slotRepo.findByIds(booking.slotIds);
-  return { ...booking, bench, applicant, tutor, route, records, slots };
+  const nextNode = route ? getNextNode(route, booking.currentNodeIndex) : null;
+  let statusText = '待审批';
+  if (booking.status === 'approved') statusText = '审批通过';
+  else if (booking.status === 'rejected') statusText = '已驳回';
+  else if (booking.status === 'checked_in') statusText = '已签到';
+  else if (booking.status === 'cancelled') statusText = '已取消';
+  else if (nextNode) {
+    const roleLabel: Record<string, string> = {
+      student: '学生',
+      tutor: '导师',
+      admin: '管理员',
+      safety: '安全员',
+    };
+    statusText = `待${roleLabel[nextNode.role] || nextNode.name}审批`;
+  }
+  return { ...booking, bench, applicant, tutor, route, records, slots, nextNode, statusText };
 }
 
 export function checkInBooking(bookingId: number, userId: number): Booking {

@@ -7,6 +7,7 @@ import {
   Button,
   Space,
   Typography,
+  Tag,
 } from 'antd';
 import type { MenuProps } from 'antd';
 import {
@@ -20,23 +21,16 @@ import {
   MenuFoldOutlined,
   MenuUnfoldOutlined,
   UserOutlined,
-  SwapOutlined,
   LogoutOutlined,
 } from '@ant-design/icons';
 import { Outlet, useNavigate, useLocation, Link } from 'react-router-dom';
 import { useEffect } from 'react';
 import { useGlobalStore } from '@/store/globalStore';
-import { useUserStore, User } from '@/store/userStore';
+import { useUserStore } from '@/store/userStore';
+import { ROLE_LABEL, User } from 'shared/types';
 
 const { Header, Sider, Content } = Layout;
-const { Title, Text } = Typography;
-
-const roleLabelMap: Record<string, string> = {
-  student: '学生',
-  tutor: '导师',
-  admin: '管理员',
-  safety: '安全员',
-};
+const { Title } = Typography;
 
 const menuItems: MenuProps['items'] = [
   {
@@ -157,11 +151,9 @@ export default function MainLayout() {
       icon:
         user.id === currentUser.id ? <CheckCircleOutlined /> : <UserOutlined />,
       label: (
-        <span>
+        <span className="flex items-center gap-2">
           {user.name}
-          <Text type="secondary" className="ml-2">
-            ({roleLabelMap[user.role]})
-          </Text>
+          <Tag color="blue">{ROLE_LABEL[user.role]}</Tag>
         </span>
       ),
       onClick: () => switchUser(user.id),
@@ -237,14 +229,11 @@ export default function MainLayout() {
                   icon={<UserOutlined />}
                   className="!bg-gradient-to-br !from-blue-500 !to-indigo-600"
                 />
-                <div className="text-right">
-                  <div className="font-medium text-slate-800 text-sm">
+                <div className="text-right flex items-center gap-2">
+                  <span className="font-medium text-slate-800 text-sm">
                     {currentUser.name}
-                  </div>
-                  <div className="text-xs text-slate-500 flex items-center gap-1 justify-end">
-                    <SwapOutlined className="scale-90" />
-                    {roleLabelMap[currentUser.role]}
-                  </div>
+                  </span>
+                  <Tag color="blue">{ROLE_LABEL[currentUser.role]}</Tag>
                 </div>
               </div>
             </Dropdown>

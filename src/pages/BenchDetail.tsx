@@ -102,9 +102,9 @@ interface BookingFormValues {
 }
 
 interface EditSlotFormValues {
-  date: string;
-  startTime: string;
-  endTime: string;
+  date: Dayjs;
+  startTime: Dayjs;
+  endTime: Dayjs;
   status: SlotStatus;
 }
 
@@ -284,9 +284,9 @@ export default function BenchDetail() {
     if (isAdmin) {
       setEditingSlot(slot);
       editSlotForm.setFieldsValue({
-        date: slot.date,
-        startTime: slot.startTime,
-        endTime: slot.endTime,
+        date: dayjs(slot.date),
+        startTime: dayjs(slot.startTime, 'HH:mm'),
+        endTime: dayjs(slot.endTime, 'HH:mm'),
         status: slot.status,
       });
       setEditSlotModalOpen(true);
@@ -379,9 +379,9 @@ export default function BenchDetail() {
         updates: [
           {
             id: editingSlot.id,
-            date: values.date,
-            startTime: values.startTime,
-            endTime: values.endTime,
+            date: values.date.format('YYYY-MM-DD'),
+            startTime: values.startTime.format('HH:mm'),
+            endTime: values.endTime.format('HH:mm'),
             status: values.status,
           },
         ],

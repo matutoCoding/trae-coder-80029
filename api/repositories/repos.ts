@@ -99,14 +99,14 @@ export const slotRepo = {
       db.prepare(`SELECT * FROM time_slots WHERE id IN (${placeholders}) ORDER BY date, start_time`).all(...ids)
     );
   },
-  upsertMany(items: Omit<TimeSlot, 'id'>[]): number {
+  upsertMany(items: Omit<TimeSlot, 'id'>[]): { inserted: number; skipped: number } {
     const stmt = db.prepare(
       `INSERT INTO time_slots (bench_id, date, start_time, end_time, status, booking_id)
        VALUES (@benchId, @date, @startTime, @endTime, @status, @bookingId)
        ON CONFLICT DO NOTHING`
     );
     const run = db.transaction((list: any[]) => {
-      let count = 0;
+      let inserted = 0;
       for (const it of list) {
         const info = stmt.run({
           benchId: it.benchId,
@@ -116,9 +116,9 @@ export const slotRepo = {
           status: it.status ?? 'available',
           bookingId: it.bookingId ?? null,
         });
-        count += Number(info.changes);
+        inserted += Number(info.changes);
       }
-      return count;
+      return { inserted, skipped: list.length - inserted };
     });
     return run(items);
   },

@@ -48,6 +48,7 @@ CREATE TABLE IF NOT EXISTS time_slots (
     FOREIGN KEY (bench_id) REFERENCES benches(id)
 );
 CREATE INDEX IF NOT EXISTS idx_slots_bench_date ON time_slots(bench_id, date);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_slots_unique ON time_slots(bench_id, date, start_time, end_time);
 
 CREATE TABLE IF NOT EXISTS cycle_rules (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
