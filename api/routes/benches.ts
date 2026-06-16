@@ -114,8 +114,17 @@ router.post('/:id/slots', (req: Request, res: Response): void => {
     };
     if (ids && updates && !Array.isArray(updates)) {
       const u = updates as SlotUpdateItem;
-      for (const id of ids) {
-        slotRepo.update(id, {
+      for (const slotId of ids) {
+        const slot = slotRepo.findByIds([slotId])[0];
+        if (slot && (slot.status === 'booked' || slot.status === 'occupied')) {
+          if (u.status === 'available') {
+            continue;
+          }
+          if (u.date || u.startTime || u.endTime) {
+            continue;
+          }
+        }
+        slotRepo.update(slotId, {
           status: u.status as any,
           startTime: u.startTime,
           endTime: u.endTime,
@@ -127,6 +136,11 @@ router.post('/:id/slots', (req: Request, res: Response): void => {
     }
     if (Array.isArray(updates)) {
       for (const u of updates) {
+        const slot = slotRepo.findByIds([u.id])[0];
+        if (slot && (slot.status === 'booked' || slot.status === 'occupied')) {
+          if (u.status === 'available') continue;
+          if (u.date || u.startTime || u.endTime) continue;
+        }
         slotRepo.update(u.id, {
           status: u.status as any,
           startTime: u.startTime,

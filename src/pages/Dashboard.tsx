@@ -305,10 +305,20 @@ export default function Dashboard() {
                           {booking.title}
                         </Title>
                         <Tag
-                          color={bookingStatusColor[booking.status] || 'default'}
+                          color={
+                            (booking as any).statusText?.includes('待')
+                              ? 'processing'
+                              : booking.status === 'approved' || booking.status === 'checked_in'
+                              ? 'success'
+                              : booking.status === 'rejected'
+                              ? 'error'
+                              : booking.status === 'cancelled'
+                              ? 'default'
+                              : bookingStatusColor[booking.status] || 'default'
+                          }
                           className="!text-xs !mb-0 flex-shrink-0"
                         >
-                          {STATUS_LABEL[booking.status] || booking.status}
+                          {(booking as any).statusText || STATUS_LABEL[booking.status] || booking.status}
                         </Tag>
                       </div>
                       <div className="text-xs text-slate-500 space-y-0.5">

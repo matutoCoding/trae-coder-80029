@@ -375,13 +375,14 @@ export default function BenchDetail() {
     try {
       const values = await editSlotForm.validateFields();
       setEditSlotSubmitting(true);
+      const isBooked = editingSlot.status === 'booked' || editingSlot.status === 'occupied';
       const res = await api.post<ApiResponse<void>>(`/benches/${id}/slots`, {
         updates: [
           {
             id: editingSlot.id,
-            date: values.date.format('YYYY-MM-DD'),
-            startTime: values.startTime.format('HH:mm'),
-            endTime: values.endTime.format('HH:mm'),
+            date: isBooked ? undefined : values.date.format('YYYY-MM-DD'),
+            startTime: isBooked ? undefined : values.startTime.format('HH:mm'),
+            endTime: isBooked ? undefined : values.endTime.format('HH:mm'),
             status: values.status,
           },
         ],
@@ -835,12 +836,17 @@ export default function BenchDetail() {
         destroyOnClose
       >
         <Form form={editSlotForm} layout="vertical" preserve={false}>
+          {editingSlot && (editingSlot.status === 'booked' || editingSlot.status === 'occupied') && (
+            <div className="mb-3 px-3 py-2 bg-amber-50 border border-amber-200 rounded text-amber-700 text-xs">
+              该时段已有预约绑定，日期和时间不可修改，仅可调整状态为维护
+            </div>
+          )}
           <Form.Item
             label="日期"
             name="date"
             rules={[{ required: true, message: '请选择日期' }]}
           >
-            <DatePicker style={{ width: '100%' }} format="YYYY-MM-DD" />
+            <DatePicker style={{ width: '100%' }} format="YYYY-MM-DD" disabled={!!editingSlot && (editingSlot.status === 'booked' || editingSlot.status === 'occupied')} />
           </Form.Item>
           <Row gutter={16}>
             <Col span={12}>
@@ -849,7 +855,7 @@ export default function BenchDetail() {
                 name="startTime"
                 rules={[{ required: true, message: '请选择开始时间' }]}
               >
-                <TimePicker style={{ width: '100%' }} format="HH:mm" />
+                <TimePicker style={{ width: '100%' }} format="HH:mm" disabled={!!editingSlot && (editingSlot.status === 'booked' || editingSlot.status === 'occupied')} />
               </Form.Item>
             </Col>
             <Col span={12}>
@@ -858,7 +864,7 @@ export default function BenchDetail() {
                 name="endTime"
                 rules={[{ required: true, message: '请选择结束时间' }]}
               >
-                <TimePicker style={{ width: '100%' }} format="HH:mm" />
+                <TimePicker style={{ width: '100%' }} format="HH:mm" disabled={!!editingSlot && (editingSlot.status === 'booked' || editingSlot.status === 'occupied')} />
               </Form.Item>
             </Col>
           </Row>

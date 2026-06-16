@@ -141,6 +141,13 @@ export default function ApprovalRoutes() {
 
   const [savingMap, setSavingMap] = useState<Record<number, boolean>>({});
 
+  const [cardNodeModalOpen, setCardNodeModalOpen] = useState(false);
+  const [cardNodeEditing, setCardNodeEditing] = useState<{ route: ApprovalRoute; idx: number } | null>(null);
+  const [cardNodeIsAdd, setCardNodeIsAdd] = useState(false);
+  const [cardNodeRoute, setCardNodeRoute] = useState<ApprovalRoute | null>(null);
+  const [cardNodeForm] = Form.useForm<{ name: string; role: UserRole }>();
+  const [cardNodeSubmitting, setCardNodeSubmitting] = useState(false);
+
   const isAdmin = currentUser.role === 'admin';
 
   const fetchData = async () => {
@@ -325,93 +332,54 @@ export default function ApprovalRoutes() {
   };
 
   const addCardNode = (route: ApprovalRoute) => {
-    modal.confirm({
-      title: '添加审批节点',
-      content: (
-        <Form layout="vertical" preserve={false}>
-          <Form.Item
-            label="节点名称"
-            name="name"
-            rules={[{ required: true, message: '请输入节点名称' }]}
-          >
-            <Input placeholder="如：导师审批" />
-          </Form.Item>
-          <Form.Item
-            label="审批角色"
-            name="role"
-            rules={[{ required: true, message: '请选择审批角色' }]}
-          >
-            <Select
-              options={ROLE_OPTIONS.map((r) => ({
-                label: r.label,
-                value: r.value,
-              }))}
-            />
-          </Form.Item>
-        </Form>
-      ),
-      onOk: async () => {
-        try {
-          const modalForm = Form.useFormInstance();
-          const vals = await modalForm.validateFields();
-          const newNodes = [
-            ...route.nodes,
-            {
-              id: 0,
-              routeId: route.id,
-              name: vals.name,
-              role: vals.role,
-              orderIndex: route.nodes.length + 1,
-            },
-          ];
-          await saveRouteNodes(route, newNodes);
-        } catch {
-          return Promise.reject();
-        }
-      },
-    });
+    setCardNodeIsAdd(true);
+    setCardNodeRoute(route);
+    setCardNodeEditing(null);
+    cardNodeForm.resetFields();
+    setCardNodeModalOpen(true);
   };
 
   const openEditCardNode = (route: ApprovalRoute, idx: number) => {
     const node = route.nodes[idx];
-    modal.confirm({
-      title: '编辑审批节点',
-      content: (
-        <Form layout="vertical" preserve={false}>
-          <Form.Item
-            label="节点名称"
-            name="name"
-            initialValue={node.name}
-            rules={[{ required: true, message: '请输入节点名称' }]}
-          >
-            <Input placeholder="如：导师审批" />
-          </Form.Item>
-          <Form.Item
-            label="审批角色"
-            name="role"
-            initialValue={node.role}
-            rules={[{ required: true, message: '请选择审批角色' }]}
-          >
-            <Select
-              options={ROLE_OPTIONS.map((r) => ({
-                label: r.label,
-                value: r.value,
-              }))}
-            />
-          </Form.Item>
-        </Form>
-      ),
-      okText: '保存',
-      onOk: async () => {
-        try {
-          const modalForm = Form.useFormInstance();
-          const vals = await modalForm.validateFields();
-          editCardNode(route, idx, vals.name, vals.role);
-        } catch {
-          return Promise.reject();
-        }
-      },
-    });
+    setCardNodeIsAdd(false);
+    setCardNodeRoute(route);
+    setCardNodeEditing({ route, idx });
+    cardNodeForm.setFieldsValue({ name: node.name, role: node.role });
+    setCardNodeModalOpen(true);
+  };
+
+  const handleCardNodeSave = async () => {
+    if (!cardNodeRoute) return;
+    try {
+      const vals = await cardNodeForm.validateFields();
+      setCardNodeSubmitting(true);
+      if (cardNodeIsAdd) {
+        const newNodes = [
+          ...cardNodeRoute.nodes,
+          {
+            id: 0,
+            routeId: cardNodeRoute.id,
+            name: vals.name,
+            role: vals.role,
+            orderIndex: cardNodeRoute.nodes.length + 1,
+          },
+        ];
+        await saveRouteNodes(cardNodeRoute, newNodes);
+      } else if (cardNodeEditing) {
+        const newNodes = [...cardNodeEditing.route.nodes];
+        newNodes[cardNodeEditing.idx] = {
+          ...newNodes[cardNodeEditing.idx],
+          name: vals.name,
+          role: vals.role,
+        };
+        await saveRouteNodes(cardNodeEditing.route, newNodes);
+      }
+      setCardNodeModalOpen(false);
+      cardNodeForm.resetFields();
+    } catch {
+    } finally {
+      setCardNodeSubmitting(false);
+    }
   };
 
   const saveRouteNodes = async (
@@ -840,6 +808,45 @@ export default function ApprovalRoutes() {
         destroyOnClose
       >
         <Form form={nodeForm} layout="vertical" preserve={false}>
+          <Form.Item
+            label="节点名称"
+            name="name"
+            rules={[{ required: true, message: '请输入节点名称' }]}
+          >
+            <Input placeholder="如：导师审批" maxLength={30} />
+          </Form.Item>
+          <Form.Item
+            label="审批角色"
+            name="role"
+            rules={[{ required: true, message: '请选择审批角色' }]}
+          >
+            <Select
+              options={ROLE_OPTIONS.map((r) => ({
+                label: r.label,
+                value: r.value,
+              }))}
+              placeholder="选择角色"
+            />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal
+        title={cardNodeIsAdd ? '添加审批节点' : '编辑审批节点'}
+        open={cardNodeModalOpen}
+        onOk={handleCardNodeSave}
+        onCancel={() => {
+          setCardNodeModalOpen(false);
+          cardNodeForm.resetFields();
+        }}
+        confirmLoading={cardNodeSubmitting}
+        okText="确定"
+        cancelText="取消"
+        width={440}
+        maskClosable={false}
+        destroyOnClose
+      >
+        <Form form={cardNodeForm} layout="vertical" preserve={false}>
           <Form.Item
             label="节点名称"
             name="name"

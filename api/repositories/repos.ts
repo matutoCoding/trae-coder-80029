@@ -262,17 +262,18 @@ export const bookingRepo = {
     return rows.map((r) => this._hydrate(r));
   },
   findByApproverRole(userId: number, role: string): Booking[] {
+    const terminalStatuses = new Set(['approved', 'rejected', 'checked_in', 'cancelled']);
     const all = camelArr<any>(db.prepare('SELECT * FROM bookings ORDER BY created_at DESC').all());
     return all
       .map((r) => this._hydrate(r))
       .filter((b) => {
+        if (terminalStatuses.has(b.status)) return false;
         const route = routeRepo.findById(b.routeId);
         if (!route) return false;
-        const currentNode = route.nodes.find((n) => n.orderIndex === b.currentNodeIndex + 1);
-        if (!currentNode) return false;
-        if (currentNode.role !== role) return false;
-        const user = userRepo.findById(userId);
-        if (!user) return false;
+        const sorted = [...route.nodes].sort((a, b2) => a.orderIndex - b2.orderIndex);
+        const nextNode = sorted.find((n) => n.orderIndex === b.currentNodeIndex + 1);
+        if (!nextNode) return false;
+        if (nextNode.role !== role) return false;
         if (role === 'tutor') return b.tutorId === userId;
         return true;
       });
